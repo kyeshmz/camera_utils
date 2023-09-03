@@ -21,7 +21,7 @@ class CameraButton extends HookWidget {
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 30),
-        width: 50,
+        width: 80,
         decoration: BoxDecoration(
           color: Colors.black,
           border: Border.all(width: 3, color: Colors.white),
@@ -29,8 +29,8 @@ class CameraButton extends HookWidget {
         ),
         child: Center(
           child: FractionallySizedBox(
-            heightFactor: isTappedDown.value ? 0.85 : 0.9,
-            widthFactor: isTappedDown.value ? 0.85 : 0.9,
+            heightFactor: isTappedDown.value ? 0.81 : 0.85,
+            widthFactor: isTappedDown.value ? 0.81 : 0.85,
             child: Container(
               decoration: BoxDecoration(
                 color: isTappedDown.value ? Colors.white.withOpacity(0.8) : Colors.white,

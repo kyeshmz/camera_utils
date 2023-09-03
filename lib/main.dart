@@ -1,6 +1,13 @@
+import 'dart:ffi';
+
 import 'package:camera_utils/camera_button.dart';
+import 'package:camera_utils/camera_flip_button.dart';
 import 'package:camera_utils/camera_state.dart';
+import 'package:camera_utils/camera_torch_button.dart';
+import 'package:camera_utils/exposure_slider.dart';
+import 'package:camera_utils/focus_circle.dart';
 import 'package:camera_utils/use_asynceffect.dart';
+import 'package:camera_utils/use_camera.dart';
 import 'package:flutter/material.dart';
 
 // import 'package:camera/camera.dart';
@@ -54,38 +61,34 @@ class MyHomePage extends HookConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cameraRef = useState<CameraController?>(null);
-    final cameraLensIndex = useState(0);
-    final zoom = useState(1);
-    const scaleFactor = 1;
-    final showFocusCircle = useState(false);
-    final focusCirclePosition = useState(const Offset(100, 0));
     final animation = useAnimationController(
       duration: const Duration(milliseconds: 1000),
     );
 
     useAnimation(animation);
 
-    Future<void> initializeCamera() async {
-      final camera = await ref.watch(cameraStateProvider.future);
-      log(camera.toString());
-      final controller = CameraController(camera[cameraLensIndex.value], ResolutionPreset.max, enableAudio: false);
-      await controller.initialize();
-      cameraRef.value = controller;
-      log('camera initialized ${cameraRef.value}');
-    }
+    final useCamera = useCameraHook(ref);
 
-    useAsyncEffect(
-      () async {
-        await Permission.camera.request();
-        await initializeCamera();
+    // Future<void> initializeCamera() async {
+    //   final camera = await ref.watch(cameraStateProvider.future);
+    //   log(camera.toString());
+    //   final controller = CameraController(camera[cameraLensIndex.value], ResolutionPreset.max, enableAudio: false);
+    //   await controller.initialize();
+    //   cameraRef.value = controller;
+    //   log('camera initialized ${cameraRef.value}');
+    // }
 
-        return () {
-          cameraRef.value!.dispose();
-        };
-      },
-      [],
-    );
+    // useAsyncEffect(
+    //   () async {
+    //     await Permission.camera.request();
+    //     await initializeCamera();
+
+    //     return () {
+    //       cameraRef.value!.dispose();
+    //     };
+    //   },
+    //   [],
+    // );
     // useEffect(
     //   () {
     //     log('cameraRef changed ${cameraRef.value}');
@@ -94,141 +97,118 @@ class MyHomePage extends HookConsumerWidget {
     //   [cameraRef.value],
     // );
 
-    // useEffect(
-    //   () {
-    //     log('cameraRef initialized ${cameraRef.value?.value.isInitialized}');
-    //     return null;
-    //   },
-    //   [cameraRef.value?.value],
-    // );
-
-    void onViewFinderTap(TapDownDetails details, BoxConstraints constraints) {
-      if (cameraRef.value == null) {
-        return;
-      }
-      final offset = Offset(
-        details.localPosition.dx / constraints.maxWidth,
-        details.localPosition.dy / constraints.maxHeight,
-      );
-      cameraRef.value!.setExposurePoint(offset);
-      cameraRef.value!.setFocusPoint(offset);
-
-      showFocusCircle.value = true;
-      log('onViewFinderTap ${details.globalPosition}');
-      focusCirclePosition.value = details.localPosition;
-    }
-
-    Future<void> changeLens() async {
-      //increment index
-
-      final camera = await ref.watch(cameraStateProvider.future);
-      log(camera.length.toString());
-      if (cameraLensIndex.value + 1 == camera.length) {
-        cameraLensIndex.value = 0;
-      } else {
-        cameraLensIndex.value = cameraLensIndex.value += 1;
-      }
-      await initializeCamera();
-    }
+    useEffect(
+      () {
+        log('cameraRef initialized ${useCamera.cameraState}');
+        return null;
+      },
+      [useCamera.cameraState],
+    );
 
     return Scaffold(
       // appBar: AppBar(),
 
       body: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          SizedBox(
-            height: 600,
-            width: MediaQuery.of(context).size.width,
-            child: cameraRef.value != null
-                ? SizedBox(
-                    height: 400,
-                    child: Stack(
-                      children: [
-                        CameraPreview(
-                          cameraRef.value!,
-                          child: LayoutBuilder(
-                            builder: (BuildContext context, BoxConstraints constraints) {
-                              return GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onScaleStart: (details) {
-                                  zoom.value = scaleFactor;
-                                  // cameraRef.value.setZoomLevel(zoom)
-                                },
-                                onScaleUpdate: (details) async {
-                                  final scaleFactor = zoom.value * details.scale;
-                                  if (scaleFactor < 1) {
-                                    return;
-                                  }
-                                  await cameraRef.value!.setZoomLevel(scaleFactor);
-                                  log('Gesture updated $scaleFactor');
-                                  debugPrint('Gesture updated');
-                                },
-                                onScaleEnd: (details) {
-                                  // zoom.value = scaleFactor;
-                                  debugPrint('Gesture end');
-                                },
-                                onTapDown: (details) => onViewFinderTap(details, constraints),
-                              );
+          useCamera.cameraState?.value != null
+              ? Stack(
+                  children: [
+                    CameraPreview(
+                      useCamera.cameraState!,
+                      child: LayoutBuilder(
+                        builder: (BuildContext context, BoxConstraints constraints) {
+                          return GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onVerticalDragStart: (details) {},
+                            onVerticalDragEnd: (details) {
+                              // useCamera.cameraState.exp
                             },
-                          ),
-                        ),
-                        Positioned(
-                          top: focusCirclePosition.value.dy - 20,
-                          left: focusCirclePosition.value.dx - 20,
-                          child: Container(
-                            height: 40,
-                            width: 40,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 1.5),
-                            ),
-                          ),
-                        ),
-                      ],
+                            onLongPress: () async {
+                              await useCamera.cameraState?.setExposureMode(ExposureMode.locked);
+                            },
+                            onScaleStart: (details) {
+                              useCamera.onScaleStart();
+                            },
+                            onScaleUpdate: (details) async {
+                              await useCamera.onScaleUpdate(details);
+                            },
+                            onScaleEnd: (details) {
+                              // zoom.value = scaleFactor;
+                              debugPrint('Gesture end');
+                            },
+                            onTapDown: (details) => useCamera.onViewFinderTap(details, constraints),
+                          );
+                        },
+                      ),
                     ),
-                  )
-                : Container(
-                    child: Text(cameraRef.value.toString()),
-                  ),
-          ),
-          Container(
-            color: Colors.black,
-            height: 100,
-            child: Row(
-              children: [
-                IconButton(
-                  onPressed: () {},
-                  icon: const Icon(Icons.photo_outlined),
-                  color: Colors.white,
+                    Positioned(
+                      top: useCamera.focusCirclePosition.dy - 20,
+                      left: useCamera.focusCirclePosition.dx - 20,
+                      child: FocusCircle(
+                        isVisible: useCamera.showFocusCircleState.value,
+                        onEnd: () async {
+                          await Future.delayed(const Duration(seconds: 1), () {
+                            useCamera.showFocusCircleState.value = false;
+                          });
+                        },
+                      ),
+                    ),
+                    const Positioned(
+                      bottom: 30,
+                      child: ExposureSlider(),
+                    ),
+                  ],
+                )
+              : Container(),
+
+          Expanded(
+            child: Container(
+              color: Colors.black,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    CameraTorchButton(
+                      isTorchOn: useCamera.cameraState?.value.flashMode == FlashMode.torch,
+                      onPressed: () async {
+                        await animation.forward();
+                        await useCamera.setCameraTorch();
+                      },
+                    ),
+                    CameraButton(
+                      onTapUp: () async {
+                        await useCamera.onCameraCapture();
+                      },
+                    ),
+                    CameraFlipButton(
+                      onPressed: () async {
+                        await useCamera.changeLens();
+                      },
+                    ),
+                  ],
                 ),
-                CameraButton(
-                  onTapUp: () {},
-                ),
-                IconButton(
-                  onPressed: () {
-                    if (cameraRef.value != null) {
-                      cameraRef.value!.setFlashMode(FlashMode.torch);
-                      // cameraRef.value!.setFlashMode(FlashMode.always);
-                    }
-                  },
-                  icon: const Icon(Icons.flash_off_outlined),
-                  color: Colors.white,
-                ),
-                IconButton(
-                  onPressed: () async {
-                    if (cameraRef.value != null) {
-                      await changeLens();
-                    }
-                  },
-                  icon: const Icon(Icons.flip_camera_ios_outlined),
-                  color: Colors.white,
-                ),
-              ],
+              ),
             ),
           ),
-          // ScannerAnimation(
-          //   animation: animation,
+
+          // GestureDetector(
+          //   onTap: () {
+          //     animation.forward(from: 0);
+          //   },
+          //   child: SizedBox(
+          //     height: MediaQuery.of(context).size.height,
+          //     width: MediaQuery.of(context).size.width,
+          //     child: Stack(
+          //       children: [
+          //         ScannerAnimation(
+          //           false,
+          //           334,
+          //           animation: animation,
+          //         ),
+          //       ],
+          //     ),
+          //   ),
           // ),
         ],
       ),
@@ -236,61 +216,49 @@ class MyHomePage extends HookConsumerWidget {
   }
 }
 
-// The [ScannerAnimation] for drawing scanner animation that moving down.
-// This is controlled by the animation value
 class ScannerAnimation extends AnimatedWidget {
-  const ScannerAnimation({
+  const ScannerAnimation(
+    this.stopped,
+    this.width, {
     super.key,
     required Animation<double> animation,
-    this.scanningColor = Colors.blue,
-    this.scanningHeightOffset = 0.4,
   }) : super(
           listenable: animation,
         );
-
-  final Color? scanningColor;
-  final double scanningHeightOffset;
+  final bool stopped;
+  final double width;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constrains) {
-        final scanningGradientHeight = constrains.maxHeight * scanningHeightOffset;
-        final animation = listenable as Animation<double>;
-        final value = animation.value;
-        final scorePosition = (value * constrains.maxHeight * 2) - (constrains.maxHeight);
+    final animation = listenable as Animation<double>;
+    final scorePosition = (animation.value * 440) + 16;
 
-        final color = scanningColor ?? Colors.blue;
+    var color1 = const Color(0x5532CD32);
+    var color2 = const Color(0x0032CD32);
 
-        return Stack(
-          children: [
-            Container(
-              height: scanningGradientHeight,
-              transform: Matrix4.translationValues(0, scorePosition, 0),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  stops: const [
-                    0.0,
-                    0.2,
-                    0.9,
-                    0.95,
-                    1,
-                  ],
-                  colors: [
-                    color.withOpacity(0.05),
-                    color.withOpacity(0.1),
-                    color.withOpacity(0.4),
-                    color,
-                    color,
-                  ],
-                ),
-              ),
+    if (animation.status == AnimationStatus.reverse) {
+      color1 = const Color(0x0032CD32);
+      color2 = const Color(0x5532CD32);
+    }
+
+    return Positioned(
+      bottom: scorePosition,
+      left: 16,
+      child: Opacity(
+        opacity: stopped ? 0.0 : 1.0,
+        child: Container(
+          height: 60,
+          width: width,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              stops: const [0.1, 0.9],
+              colors: [color1, color2],
             ),
-          ],
-        );
-      },
+          ),
+        ),
+      ),
     );
   }
 }
