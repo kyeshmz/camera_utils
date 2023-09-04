@@ -13,7 +13,12 @@ CameraHook useCameraHook(WidgetRef ref) {
   final cameraState = useState<CameraController?>(null);
 
   final cameraLensIndex = useState(0);
-  final zoom = useState(1);
+  final zoom = useState<double>(1);
+  final minZoom = useState<double?>(null);
+  final maxZoom = useState<double?>(null);
+  final minExposure = useState<double?>(null);
+  final maxExposure = useState<double?>(null);
+  final exposureStepSize = useState<double?>(null);
   const scaleFactor = 1;
 
   final showFocusCircle = useState(false);
@@ -23,7 +28,7 @@ CameraHook useCameraHook(WidgetRef ref) {
   );
 
   void onScaleStart() {
-    zoom.value = scaleFactor;
+    zoom.value = scaleFactor.toDouble();
   }
 
   Future<void> onScaleUpdate(ScaleUpdateDetails details) async {
@@ -59,8 +64,10 @@ CameraHook useCameraHook(WidgetRef ref) {
 
   Future<File> onCameraCapture() async {
     try {
+      await cameraState.value?.lockCaptureOrientation();
       final file = await cameraState.value?.takePicture();
       // we get the compressed version here  and we return to make sure
+      print(file?.path);
       if (file == null) {
         throw Exception('picture fail');
       }
@@ -88,20 +95,36 @@ CameraHook useCameraHook(WidgetRef ref) {
   }
 
   Future<void> setCameraTorch() async {
-    if (cameraState.value != null) {
-      if (cameraState.value!.value.flashMode == FlashMode.off) {
-        await cameraState.value!.setFlashMode(FlashMode.torch);
-      } else {
-        await cameraState.value!.setFlashMode(FlashMode.off);
-      }
+    if (cameraState.value?.value.flashMode == FlashMode.off) {
+      await cameraState.value?.setFlashMode(FlashMode.torch);
+    } else {
+      await cameraState.value?.setFlashMode(FlashMode.off);
     }
+  }
+
+  Future<void> changeExposure(double exposureVal) async {
+    if (cameraState.value != null) {
+      await cameraState.value?.setExposureOffset(exposureVal);
+    }
+  }
+
+  Future<void> changeZoom(double val) async {
+    await cameraState.value?.setZoomLevel(val);
+  }
+
+  Future<void> initializeCameraParameters() async {
+    minZoom.value = await cameraState.value?.getMinZoomLevel();
+    maxZoom.value = await cameraState.value?.getMaxZoomLevel();
+    minExposure.value = await cameraState.value?.getMinExposureOffset();
+    maxExposure.value = await cameraState.value?.getMaxExposureOffset();
+    exposureStepSize.value = await cameraState.value?.getExposureOffsetStepSize();
   }
 
   useAsyncEffect(
     () async {
       await Permission.camera.request();
       await initializeCamera();
-
+      await initializeCameraParameters();
       return () {
         cameraState.value!.dispose();
       };
@@ -120,6 +143,13 @@ CameraHook useCameraHook(WidgetRef ref) {
     onScaleUpdate: onScaleUpdate,
     focusCirclePosition: focusCirclePosition.value,
     showFocusCircleState: showFocusCircle,
+    zoomValue: zoom.value ?? 0,
+    minZoom: minZoom.value ?? 0,
+    maxZoom: maxZoom.value ?? 1,
+    minExposure: minExposure.value ?? 0,
+    maxExposure: maxExposure.value ?? 1,
+    changeExposure: changeExposure,
+    changeZoom: changeZoom,
   );
 }
 
@@ -135,6 +165,13 @@ class CameraHook {
     required this.setCameraTorch,
     required this.focusCirclePosition,
     required this.showFocusCircleState,
+    required this.zoomValue,
+    required this.minZoom,
+    required this.maxZoom,
+    required this.minExposure,
+    required this.maxExposure,
+    required this.changeExposure,
+    required this.changeZoom,
   });
 
   final VoidCallback onScaleStart;
@@ -152,6 +189,16 @@ class CameraHook {
   final Future<void> Function() setCameraTorch;
   final Offset focusCirclePosition;
   final ValueNotifier<bool> showFocusCircleState;
+
+  final double zoomValue;
+
+  final double minZoom;
+  final double maxZoom;
+  final double minExposure;
+  final double maxExposure;
+
+  final Future<void> Function(double) changeExposure;
+  final Future<void> Function(double) changeZoom;
 }
 
 // Future<Uint8List> compressFile(XFile xfile) async {

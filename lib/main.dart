@@ -8,6 +8,7 @@ import 'package:camera_utils/exposure_slider.dart';
 import 'package:camera_utils/focus_circle.dart';
 import 'package:camera_utils/use_asynceffect.dart';
 import 'package:camera_utils/use_camera.dart';
+import 'package:camera_utils/zoom_slider.dart';
 import 'package:flutter/material.dart';
 
 // import 'package:camera/camera.dart';
@@ -156,6 +157,10 @@ class MyHomePage extends HookConsumerWidget {
                     const Positioned(
                       bottom: 30,
                       child: ExposureSlider(),
+                    ),
+                    const Positioned(
+                      bottom: 60,
+                      child: ZoomSlider(),
                     ),
                   ],
                 )
